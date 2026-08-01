@@ -1,18 +1,7 @@
-import type { SessionAction, SessionState, StyleConfig } from './types'
+import { defaultStyleConfig, mergeStyleConfig } from './style'
+import type { SessionAction, SessionState } from './types'
 
-export const defaultStyleConfig: StyleConfig = {
-  fontFamily: 'Inter',
-  fontWeight: 700,
-  fontSizePx: 58,
-  color: '#ffffff',
-  lineHeight: 1.25,
-  align: 'center',
-  maxWidthPct: 90,
-  bottomMarginPct: 8,
-  maxLines: 2,
-  uppercase: false,
-  chromaColor: '#00ff00',
-}
+export { defaultStyleConfig, mergeStyleConfig } from './style'
 
 export function createInitialState(): SessionState {
   return {
@@ -44,6 +33,25 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
         typingBuffer: { ...state.typingBuffer, draft: '' },
       }
     }
+
+    case 'clear':
+      return {
+        ...state,
+        onAirText: null,
+        cleared: true,
+      }
+
+    case 'style/updated':
+      return {
+        ...state,
+        style: mergeStyleConfig({ ...state.style, ...action.patch }),
+      }
+
+    case 'style/reset':
+      return {
+        ...state,
+        style: defaultStyleConfig,
+      }
 
     default:
       return state

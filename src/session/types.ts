@@ -15,18 +15,36 @@ export interface Script {
   cues: Cue[]
 }
 
+export type HorizontalAlign = 'left' | 'center' | 'right'
+
+export type CaptionPosition = 'left' | 'center' | 'right'
+
+export type ChromaPreset = 'green' | 'magenta' | 'black' | 'transparent'
+
 export interface StyleConfig {
   fontFamily: string
   fontWeight: number
   fontSizePx: number
   color: string
   lineHeight: number
-  align: 'left' | 'center' | 'right'
+  align: HorizontalAlign
+  position: CaptionPosition
   maxWidthPct: number
   bottomMarginPct: number
   maxLines: number
   uppercase: boolean
-  chromaColor: string
+  transitionFadeMs: number
+  outlineWidthPx: number
+  outlineColor: string
+  dropShadow: boolean
+  boxEnabled: boolean
+  boxColor: string
+  boxOpacity: number
+  boxPaddingXPx: number
+  boxPaddingYPx: number
+  chromaPreset: ChromaPreset
+  captionsShown: boolean
+  idleClearSeconds: number
 }
 
 export interface TypingBuffer {
@@ -48,3 +66,6 @@ export interface SessionState {
 export type SessionAction =
   | { type: 'draft/changed'; text: string }
   | { type: 'take' }
+  | { type: 'clear' }
+  | { type: 'style/updated'; patch: Partial<StyleConfig> }
+  | { type: 'style/reset' }

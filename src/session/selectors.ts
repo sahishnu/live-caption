@@ -1,12 +1,35 @@
 import type { Measurer, MeasuredFont } from './measurer'
-import type { SessionState } from './types'
+import { chromaColorFromPreset } from './style'
+import type { SessionState, StyleConfig } from './types'
+import { FRAME_HEIGHT, FRAME_WIDTH } from '../frame/constants'
 
 export function selectOnAir(state: SessionState): string | null {
+  if (!state.style.captionsShown) return null
   return state.cleared ? null : state.onAirText
 }
 
 export function selectDraft(state: SessionState): string {
   return state.typingBuffer.draft
+}
+
+export function selectChromaColor(state: SessionState): string {
+  return chromaColorFromPreset(state.style.chromaPreset)
+}
+
+export function styleToMeasuredFont(style: StyleConfig): MeasuredFont {
+  return {
+    fontFamily: style.fontFamily,
+    fontWeight: style.fontWeight,
+    fontSizePx: style.fontSizePx,
+  }
+}
+
+export function styleToMaxWidthPx(style: StyleConfig): number {
+  return (style.maxWidthPct / 100) * FRAME_WIDTH
+}
+
+export function styleToBottomMarginPx(style: StyleConfig): number {
+  return (style.bottomMarginPct / 100) * FRAME_HEIGHT
 }
 
 /**
@@ -32,4 +55,17 @@ export function wrapText(text: string, maxWidthPx: number, font: MeasuredFont, m
   lines.push(current)
 
   return lines
+}
+
+/** On-air text wrapped with the live Style Config — reflows when style changes, no re-parse. */
+export function selectOnAirLines(state: SessionState, measurer: Measurer): string[] {
+  const text = selectOnAir(state)
+  if (!text) return []
+
+  return wrapText(text, styleToMaxWidthPx(state.style), styleToMeasuredFont(state.style), measurer)
+}
+
+/** Returns true when on-air text wraps to more lines than the Style Config allows. */
+export function selectOnAirOverflow(state: SessionState, measurer: Measurer): boolean {
+  return selectOnAirLines(state, measurer).length > state.style.maxLines
 }

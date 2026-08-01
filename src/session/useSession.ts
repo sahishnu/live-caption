@@ -1,9 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Transport } from '../transport/types'
-import { createInitialState, sessionReducer } from './reducer'
+import { createInitialState, mergeStyleConfig, sessionReducer } from './reducer'
 import type { SessionAction, SessionState } from './types'
 
 const CHANNEL = 'session'
+
+function rehydrateState(persisted: SessionState | null): SessionState {
+  if (!persisted) return createInitialState()
+  return {
+    ...createInitialState(),
+    ...persisted,
+    style: mergeStyleConfig(persisted.style),
+    typingBuffer: persisted.typingBuffer ?? createInitialState().typingBuffer,
+  }
+}
 
 /**
  * All live state flows through this hook: it rehydrates from the Transport on
@@ -13,7 +23,7 @@ const CHANNEL = 'session'
 export function useSession(transport: Transport): [SessionState, (action: SessionAction) => void] {
   const [state, setState] = useState<SessionState>(() => {
     const persisted = transport.read(CHANNEL) as SessionState | null
-    return persisted ?? createInitialState()
+    return rehydrateState(persisted)
   })
 
   const stateRef = useRef(state)
@@ -21,7 +31,7 @@ export function useSession(transport: Transport): [SessionState, (action: Sessio
 
   useEffect(() => {
     return transport.subscribe(CHANNEL, (value) => {
-      const next = value as SessionState
+      const next = rehydrateState(value as SessionState)
       stateRef.current = next
       setState(next)
     })

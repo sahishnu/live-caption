@@ -4,7 +4,7 @@
 
 **Blocked by:** 01 — Frame, Transport, and the session reducer
 
-**Status:** ready-for-agent
+**Status:** done
 
 ## What to build
 
@@ -35,16 +35,16 @@ preview **only** and must never appear on the Display View.
 
 ## Acceptance criteria
 
-- [ ] Every Style Config field listed above is editable from the Console and takes effect on the Display View live
-- [ ] The Style Config persists across a refresh of both windows
-- [ ] Reset to defaults restores every field
-- [ ] Text wraps by measured rendered width, not character count
-- [ ] Changing font size or max width reflows the current caption immediately
-- [ ] Background boxes render per line, each sized to that line's width
-- [ ] Changing box padding does not move the last line's baseline
-- [ ] Bottom margin and max width are expressed relative to the 1920×1080 Frame
-- [ ] Transition defaults to a hard cut; setting a fade duration produces a fade
-- [ ] The Console preview is proportionally identical to the Display View at any window size
-- [ ] Safe-area guides appear in the Console preview and never on the Display View
-- [ ] Reducer tests cover wrapping against the fake Measurer at several font sizes and max widths
-- [ ] Reducer tests cover that a Style Config change reflows without re-parsing
+- [x] Every Style Config field listed above is editable from the Console and takes effect on the Display View live
+- [x] The Style Config persists across a refresh of both windows
+- [x] Reset to defaults restores every field
+- [x] Text wraps by measured rendered width, not character count
+- [x] Changing font size or max width reflows the current caption immediately
+- [x] Background boxes render per line, each sized to that line's width
+- [x] Changing box padding does not move the last line's baseline
+- [x] Bottom margin and max width are expressed relative to the 1920×1080 Frame
+- [x] Transition defaults to a hard cut; setting a fade duration produces a fade
+- [x] The Console preview is proportionally identical to the Display View at any window size
+- [x] Safe-area guides appear in the Console preview and never on the Display View
+- [x] Reducer tests cover wrapping against the fake Measurer at several font sizes and max widths
+- [x] Reducer tests cover that a Style Config change reflows without re-parsing
