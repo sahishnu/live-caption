@@ -20,6 +20,13 @@ import type { SessionAction, SessionState, Cue } from './types'
 
 export { defaultStyleConfig, mergeStyleConfig } from './style'
 
+let scriptIdCounter = 0
+
+function nextScriptId(): string {
+  scriptIdCounter += 1
+  return `script-${scriptIdCounter}`
+}
+
 export function createInitialState(): SessionState {
   return {
     scriptLibrary: [],
@@ -337,7 +344,7 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
 
     case 'import/confirmed': {
       if (!state.importPreview) return state
-      const scriptId = `script-${Date.now()}`
+      const scriptId = nextScriptId()
       const script = {
         id: scriptId,
         name: action.name,
@@ -362,6 +369,57 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
       return {
         ...state,
         importPreview: null,
+      }
+
+    case 'script/switch': {
+      const script = state.scriptLibrary.find((entry) => entry.id === action.scriptId)
+      if (!script || script.id === state.activeScriptId) return state
+
+      return {
+        ...state,
+        activeScriptId: script.id,
+        armedIndex: 0,
+        scoutIndex: 0,
+      }
+    }
+
+    case 'script/rename': {
+      const name = action.name.trim()
+      if (!name) return state
+      if (!state.scriptLibrary.some((entry) => entry.id === action.scriptId)) return state
+
+      return {
+        ...state,
+        scriptLibrary: state.scriptLibrary.map((entry) =>
+          entry.id === action.scriptId ? { ...entry, name } : entry,
+        ),
+      }
+    }
+
+    case 'script/delete': {
+      const remaining = state.scriptLibrary.filter((entry) => entry.id !== action.scriptId)
+      if (remaining.length === state.scriptLibrary.length) return state
+
+      const deletingActive = state.activeScriptId === action.scriptId
+      const activeScriptId = deletingActive ? (remaining[0]?.id ?? null) : state.activeScriptId
+
+      return {
+        ...state,
+        scriptLibrary: remaining,
+        activeScriptId,
+        armedIndex: deletingActive ? 0 : state.armedIndex,
+        scoutIndex: deletingActive ? 0 : state.scoutIndex,
+      }
+    }
+
+    case 'state/imported':
+      return {
+        ...state,
+        scriptLibrary: action.snapshot.scriptLibrary,
+        activeScriptId: action.snapshot.activeScriptId,
+        style: action.snapshot.style,
+        armedIndex: action.snapshot.activeScriptId ? 0 : -1,
+        scoutIndex: action.snapshot.activeScriptId ? 0 : -1,
       }
 
     case 'calibration/toggled':

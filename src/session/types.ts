@@ -1,4 +1,5 @@
 import type { Measurer } from './measurer'
+import type { ExportedSnapshot } from './persist'
 
 export type Mode = 'step' | 'typing'
 
@@ -103,6 +104,10 @@ export type SessionAction =
   | { type: 'import/reclassify'; cueId: string }
   | { type: 'import/confirmed'; name: string }
   | { type: 'import/cancelled' }
+  | { type: 'script/switch'; scriptId: string }
+  | { type: 'script/rename'; scriptId: string; name: string }
+  | { type: 'script/delete'; scriptId: string }
+  | { type: 'state/imported'; snapshot: ExportedSnapshot }
   | { type: 'calibration/toggled' }
   | { type: 'cue/edit'; cueId: string; text: string }
   | { type: 'cue/split'; cueId: string; offset: number }

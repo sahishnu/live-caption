@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { ImportReview } from '../components/ImportReview'
 import { PreflightChecklist } from '../components/PreflightChecklist'
 import { PreviewFrame } from '../components/PreviewFrame'
+import { ScriptLibraryPanel } from '../components/ScriptLibraryPanel'
 import { StepModePanel } from '../components/StepModePanel'
 import { StylePanel } from '../components/StylePanel'
 import { useCueingKeys } from '../hooks/useCueingKeys'
@@ -135,6 +136,8 @@ export function Console({ transport }: ConsoleProps) {
       )}
 
       <StylePanel style={state.style} dispatch={dispatch} />
+
+      <ScriptLibraryPanel state={state} dispatch={dispatch} />
 
       <section className="flex flex-col gap-4 rounded border border-neutral-800 p-4">
         <h2 className="text-lg font-semibold">Import script</h2>

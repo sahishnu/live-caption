@@ -685,3 +685,102 @@ describe('cue editing', () => {
     expect(selectActiveCues(next)).toHaveLength(2)
   })
 })
+
+describe('script library', () => {
+  function loadNamedScript(text: string, name: string, initial = createInitialState()) {
+    let state = sessionReducer(initial, { type: 'import/pasted', text })
+    return sessionReducer(state, { type: 'import/confirmed', name })
+  }
+
+  it('saves several named scripts simultaneously', () => {
+    let state = loadNamedScript('ANN: Drama line.', 'Drama')
+    state = loadNamedScript('BOB: Address line.', 'Address', state)
+
+    expect(state.scriptLibrary).toHaveLength(2)
+    expect(state.scriptLibrary.map((script) => script.name)).toEqual(['Drama', 'Address'])
+    expect(state.activeScriptId).toBe(state.scriptLibrary[1]?.id)
+  })
+
+  it('switching the active script carries that script cues and edits', () => {
+    let state = loadNamedScript('ANN: First drama.\n\nANN: Second drama.', 'Drama')
+    const dramaId = state.activeScriptId!
+    state = loadNamedScript('BOB: Address only.', 'Address', state)
+    const addressId = state.activeScriptId!
+
+    state = sessionReducer(state, { type: 'script/switch', scriptId: dramaId })
+    const dramaCueId = selectActiveCues(state)[0]!.id
+    state = sessionReducer(state, {
+      type: 'cue/edit',
+      cueId: dramaCueId,
+      text: 'Edited drama line.',
+    })
+
+    state = sessionReducer(state, { type: 'script/switch', scriptId: addressId })
+    expect(selectActiveCues(state)[0]?.text).toBe('Address only.')
+
+    state = sessionReducer(state, { type: 'script/switch', scriptId: dramaId })
+    expect(state.activeScriptId).toBe(dramaId)
+    expect(selectActiveCues(state)[0]?.text).toBe('Edited drama line.')
+    expect(selectActiveCues(state)).toHaveLength(2)
+  })
+
+  it('switching scripts does not change the Style Config', () => {
+    let state = loadNamedScript('ANN: One.', 'First')
+    state = sessionReducer(state, {
+      type: 'style/updated',
+      patch: { fontSizePx: 72, color: '#ffcc00' },
+    })
+    const firstId = state.activeScriptId!
+    state = loadNamedScript('BOB: Two.', 'Second', state)
+
+    state = sessionReducer(state, { type: 'script/switch', scriptId: firstId })
+    expect(state.style.fontSizePx).toBe(72)
+    expect(state.style.color).toBe('#ffcc00')
+  })
+
+  it('switching scripts does not push new content to the Display View', () => {
+    let state = loadNamedScript('ANN: On air line.\n\nANN: Next line.', 'Drama')
+    const dramaId = state.activeScriptId!
+    state = loadNamedScript('BOB: Different script.', 'Address', state)
+    const addressId = state.activeScriptId!
+
+    state = sessionReducer(state, { type: 'script/switch', scriptId: dramaId })
+    state = take(state)
+    const onAirBefore = selectOnAir(state)
+
+    state = sessionReducer(state, { type: 'script/switch', scriptId: addressId })
+
+    expect(selectOnAir(state)).toBe(onAirBefore)
+    expect(state.onAirCueIndex).toBe(0)
+  })
+
+  it('renames a script', () => {
+    let state = loadNamedScript('ANN: Hello.', 'Old name')
+    const scriptId = state.activeScriptId!
+    state = sessionReducer(state, { type: 'script/rename', scriptId, name: 'New name' })
+
+    expect(state.scriptLibrary.find((script) => script.id === scriptId)?.name).toBe('New name')
+  })
+
+  it('deletes a script and switches active when deleting the active script', () => {
+    let state = loadNamedScript('ANN: First.', 'First')
+    const firstId = state.activeScriptId!
+    state = loadNamedScript('BOB: Second.', 'Second', state)
+    const secondId = state.activeScriptId!
+
+    state = sessionReducer(state, { type: 'script/delete', scriptId: secondId })
+    expect(state.scriptLibrary).toHaveLength(1)
+    expect(state.activeScriptId).toBe(firstId)
+  })
+
+  it('deletes a non-active script without changing the active script', () => {
+    let state = loadNamedScript('ANN: First.', 'First')
+    const firstId = state.activeScriptId!
+    state = loadNamedScript('BOB: Second.', 'Second', state)
+    const secondId = state.activeScriptId!
+
+    state = sessionReducer(state, { type: 'script/delete', scriptId: firstId })
+    expect(state.scriptLibrary).toHaveLength(1)
+    expect(state.activeScriptId).toBe(secondId)
+  })
+})
