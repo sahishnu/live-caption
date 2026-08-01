@@ -4,7 +4,7 @@
 
 **Blocked by:** 01 — Frame, Transport, and the session reducer
 
-**Status:** ready-for-agent
+**Status:** done
 
 ## What to build
 

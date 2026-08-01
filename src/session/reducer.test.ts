@@ -2,15 +2,42 @@ import { describe, expect, it } from 'vitest'
 import { createFakeMeasurer } from '../test/fakeMeasurer'
 import { createInitialState, defaultStyleConfig, sessionReducer } from './reducer'
 import {
+  selectActiveCues,
   selectCommittedLines,
   selectDisplayLines,
   selectDraft,
   selectHasOnAir,
+  selectImportPreview,
   selectOnAir,
   selectOnAirLines,
 } from './selectors'
+import type { Cue } from './types'
 
 const measurer = createFakeMeasurer(10)
+
+const WORKED_EXAMPLE = `PAVAN: Left, left... now straight, keep it straight... || right, right, right... okay, stop.
+PRAKASH: What happened? What happened?
+
+(Still talking, the two of them reach the raised platform.)
+
+[VIDEO] Video_2 — sparrow through the plough (side screen, 16:9)
+
+PAVAN: Oh Bavaji, just look at the game fate has played with us. His name is Prakash —
+"light" — but there is only darkness in his life... (the sadhu looks surprised) ...the
+poor man is blind.`
+
+function cueFields(cues: Cue[]) {
+  return cues.map((cue) => ({
+    text: cue.text,
+    speaker: cue.speaker,
+    kind: cue.kind,
+    segments: cue.segments,
+  }))
+}
+
+function cueTexts(cues: Cue[]) {
+  return cues.map((cue) => cue.text)
+}
 
 function take(state: ReturnType<typeof createInitialState>, text?: string) {
   let next = state
@@ -240,5 +267,141 @@ describe('sessionReducer', () => {
     state = sessionReducer(state, { type: 'idle/check', now: takenAt + 60_000 })
 
     expect(selectHasOnAir(state)).toBe(true)
+  })
+})
+
+describe('script import', () => {
+  it('pasting text creates an import preview with parsed Cues', () => {
+    const state = sessionReducer(createInitialState(), {
+      type: 'import/pasted',
+      text: WORKED_EXAMPLE,
+    })
+
+    const preview = selectImportPreview(state)
+    expect(preview).not.toBeNull()
+    expect(preview!.cues.length).toBeGreaterThan(0)
+    expect(preview!.cues.every((cue) => !cue.text.includes('\n'))).toBe(true)
+  })
+
+  it('parses the worked example into the expected Cues, speakers, Note Rows, and splits', () => {
+    const state = sessionReducer(createInitialState(), {
+      type: 'import/pasted',
+      text: WORKED_EXAMPLE,
+    })
+
+    const cues = selectImportPreview(state)!.cues
+    const fields = cueFields(cues)
+
+    expect(cueTexts(cues)).toEqual([
+      'Left, left... now straight, keep it straight...',
+      'right, right, right... okay, stop.',
+      'What happened? What happened?',
+      '(Still talking, the two of them reach the raised platform.)',
+      '[VIDEO] Video_2 — sparrow through the plough (side screen, 16:9)',
+      'Oh Bavaji, just look at the game fate has played with us.',
+      'His name is Prakash — "light" — but there is only darkness in his life... the poor man is blind.',
+    ])
+
+    expect(fields[0]?.speaker).toBe('PAVAN')
+    expect(fields[1]?.speaker).toBe('PAVAN')
+    expect(fields[2]?.speaker).toBe('PRAKASH')
+    expect(fields[3]?.kind).toBe('note')
+    expect(fields[4]?.kind).toBe('marker')
+    expect(fields[5]?.speaker).toBe('PAVAN')
+    expect(fields[6]?.speaker).toBe('PAVAN')
+
+    const inlineNoteCue = fields[6]
+    expect(inlineNoteCue?.text).not.toContain('the sadhu looks surprised')
+    expect(inlineNoteCue?.text).not.toMatch(/\.\.\.\s*\.\.\./)
+    expect(inlineNoteCue?.segments?.some((segment) => segment.dimmed)).toBe(true)
+  })
+
+  it('recognises **NAME:** as a speaker prefix', () => {
+    const state = sessionReducer(createInitialState(), {
+      type: 'import/pasted',
+      text: '**PAVAN:** Hello there.\n**PRAKASH:** Hi.',
+    })
+
+    const cues = selectImportPreview(state)!.cues
+    expect(cues).toHaveLength(2)
+    expect(cues[0]?.speaker).toBe('PAVAN')
+    expect(cues[1]?.speaker).toBe('PRAKASH')
+  })
+
+  it('a speaker change always ends a Cue, even for very short adjacent lines', () => {
+    const state = sessionReducer(createInitialState(), {
+      type: 'import/pasted',
+      text: 'ANN: Hi.\nBOB: Hey.',
+    })
+
+    const cues = selectImportPreview(state)!.cues
+    expect(cues).toHaveLength(2)
+    expect(cues[0]?.text).toBe('Hi.')
+    expect(cues[1]?.text).toBe('Hey.')
+  })
+
+  it('a blank line always ends a Cue', () => {
+    const state = sessionReducer(createInitialState(), {
+      type: 'import/pasted',
+      text: 'ANN: First line.\n\nANN: Second line.',
+    })
+
+    const cues = selectImportPreview(state)!.cues
+    expect(cues).toHaveLength(2)
+    expect(cues[0]?.text).toBe('First line.')
+    expect(cues[1]?.text).toBe('Second line.')
+  })
+
+  it('strips inline parentheticals and normalises punctuation', () => {
+    const state = sessionReducer(createInitialState(), {
+      type: 'import/pasted',
+      text: 'ANN: Wait... (aside) ...go on.',
+    })
+
+    const cue = selectImportPreview(state)!.cues[0]
+    expect(cue?.text).toBe('Wait... go on.')
+    expect(cue?.text).not.toMatch(/\s{2,}/)
+    expect(cue?.text).not.toMatch(/\.\.\.\s*\.\.\./)
+  })
+
+  it('reclassifies a row in one action', () => {
+    let state = sessionReducer(createInitialState(), {
+      type: 'import/pasted',
+      text: 'ANN: Hello.',
+    })
+    const cueId = selectImportPreview(state)!.cues[0]!.id
+
+    state = sessionReducer(state, { type: 'import/reclassify', cueId })
+    expect(selectImportPreview(state)!.cues[0]?.kind).toBe('note')
+
+    state = sessionReducer(state, { type: 'import/reclassify', cueId })
+    expect(selectImportPreview(state)!.cues[0]?.kind).toBe('marker')
+
+    state = sessionReducer(state, { type: 'import/reclassify', cueId })
+    expect(selectImportPreview(state)!.cues[0]?.kind).toBe('line')
+  })
+
+  it('confirming import loads the script and switches to step mode', () => {
+    let state = sessionReducer(createInitialState(), {
+      type: 'import/pasted',
+      text: 'ANN: Hello.',
+    })
+    state = sessionReducer(state, { type: 'import/confirmed', name: 'Test script' })
+
+    expect(selectImportPreview(state)).toBeNull()
+    expect(state.mode).toBe('step')
+    expect(selectActiveCues(state)).toHaveLength(1)
+    expect(state.scriptLibrary[0]?.name).toBe('Test script')
+  })
+
+  it('cancelled import clears the preview without loading cues', () => {
+    let state = sessionReducer(createInitialState(), {
+      type: 'import/pasted',
+      text: 'ANN: Hello.',
+    })
+    state = sessionReducer(state, { type: 'import/cancelled' })
+
+    expect(selectImportPreview(state)).toBeNull()
+    expect(selectActiveCues(state)).toHaveLength(0)
   })
 })

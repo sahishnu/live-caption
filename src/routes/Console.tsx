@@ -1,8 +1,10 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
+import { ImportReview } from '../components/ImportReview'
 import { PreviewFrame } from '../components/PreviewFrame'
 import { StylePanel } from '../components/StylePanel'
 import { createCanvasMeasurer } from '../session/measurer'
-import { selectDraft } from '../session/selectors'
+import { selectActiveCues, selectDraft, selectImportPreview } from '../session/selectors'
+import { speakerColor } from '../session/speakers'
 import { useSession } from '../session/useSession'
 import type { Mode } from '../session/types'
 import { useConnectionStatus } from '../transport/heartbeat'
@@ -23,6 +25,9 @@ export function Console({ transport }: ConsoleProps) {
   const connected = useConnectionStatus(transport)
   const draft = selectDraft(state)
   const measurer = useMemo(() => createCanvasMeasurer(), [])
+  const importPreview = selectImportPreview(state)
+  const activeCues = selectActiveCues(state)
+  const [scriptPaste, setScriptPaste] = useState('')
 
   return (
     <div className="mx-auto flex min-h-screen max-w-6xl flex-col gap-6 p-8 text-white">
@@ -73,6 +78,63 @@ export function Console({ transport }: ConsoleProps) {
       </div>
 
       <StylePanel style={state.style} dispatch={dispatch} />
+
+      <section className="flex flex-col gap-4 rounded border border-neutral-800 p-4">
+        <h2 className="text-lg font-semibold">Import script</h2>
+        {importPreview ? (
+          <ImportReview cues={importPreview.cues} dispatch={dispatch} />
+        ) : (
+          <>
+            <textarea
+              aria-label="Script paste"
+              className="min-h-40 rounded border border-neutral-700 bg-neutral-900 p-3 font-mono text-sm"
+              value={scriptPaste}
+              onChange={(event) => setScriptPaste(event.target.value)}
+              placeholder="Paste translated script here…"
+            />
+            <button
+              type="button"
+              className="self-start rounded bg-neutral-200 px-4 py-2 font-semibold text-neutral-900 hover:bg-white"
+              disabled={scriptPaste.trim().length === 0}
+              onClick={() => dispatch({ type: 'import/pasted', text: scriptPaste })}
+            >
+              Parse and review
+            </button>
+          </>
+        )}
+      </section>
+
+      {activeCues.length > 0 && (
+        <section className="flex flex-col gap-3 rounded border border-neutral-800 p-4">
+          <h2 className="text-lg font-semibold">Loaded cues ({activeCues.length})</h2>
+          <div className="flex max-h-64 flex-col gap-2 overflow-y-auto pr-1">
+            {activeCues.map((cue) => (
+              <div
+                key={cue.id}
+                className="grid grid-cols-[5rem_1fr] gap-3 rounded border border-neutral-800 bg-neutral-950 px-3 py-2"
+              >
+                <span
+                  className="truncate text-xs font-semibold uppercase tracking-wide"
+                  style={{ color: speakerColor(cue.speaker) }}
+                >
+                  {cue.speaker ?? '—'}
+                </span>
+                <span className="text-sm">
+                  {cue.segments ? (
+                    cue.segments.map((segment, index) => (
+                      <span key={index} className={segment.dimmed ? 'text-neutral-500' : undefined}>
+                        {segment.text}
+                      </span>
+                    ))
+                  ) : (
+                    cue.text
+                  )}
+                </span>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   )
 }

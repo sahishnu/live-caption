@@ -13,6 +13,7 @@ function rehydrateState(persisted: SessionState | null): SessionState {
     style: mergeStyleConfig(persisted.style),
     typingBuffer: persisted.typingBuffer ?? createInitialState().typingBuffer,
     lastTakeAt: persisted.lastTakeAt ?? null,
+    importPreview: persisted.importPreview ?? null,
   }
 }
 
