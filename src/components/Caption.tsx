@@ -1,12 +1,11 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
-import type { Measurer } from '../session/measurer'
-import { styleToBottomMarginPx, styleToMaxWidthPx, wrapText } from '../session/selectors'
+import type { DisplayLine } from '../session/selectors'
+import { styleToBottomMarginPx, styleToMaxWidthPx } from '../session/selectors'
 import type { CaptionPosition, StyleConfig } from '../session/types'
 
 interface CaptionProps {
-  text: string | null
+  lines: DisplayLine[]
   style: StyleConfig
-  measurer: Measurer
 }
 
 const SAFE_INSET_PCT = 5
@@ -30,7 +29,7 @@ function boxBackground(color: string, opacity: number): string {
   return `rgba(${r}, ${g}, ${b}, ${opacity})`
 }
 
-function lineTextStyle(style: StyleConfig): CSSProperties {
+function lineTextStyle(style: StyleConfig, settled: boolean): CSSProperties {
   const textStyle: CSSProperties = {
     fontFamily: style.fontFamily,
     fontWeight: style.fontWeight,
@@ -39,6 +38,8 @@ function lineTextStyle(style: StyleConfig): CSSProperties {
     color: style.color,
     textTransform: style.uppercase ? 'uppercase' : 'none',
     whiteSpace: 'nowrap',
+    opacity: 1,
+    fontStyle: settled ? 'normal' : 'italic',
   }
 
   if (style.dropShadow) {
@@ -53,8 +54,8 @@ function lineTextStyle(style: StyleConfig): CSSProperties {
   return textStyle
 }
 
-function LineContent({ line, style }: { line: string; style: StyleConfig }) {
-  const textStyle = lineTextStyle(style)
+function LineContent({ line, style, settled }: { line: string; style: StyleConfig; settled: boolean }) {
+  const textStyle = lineTextStyle(style, settled)
 
   if (!style.boxEnabled) {
     return <span style={textStyle}>{line}</span>
@@ -79,43 +80,49 @@ function LineContent({ line, style }: { line: string; style: StyleConfig }) {
   )
 }
 
+function linesKey(lines: DisplayLine[]): string {
+  return lines.map((line) => `${line.settled ? '1' : '0'}:${line.text}`).join('|')
+}
+
 /**
  * Bottom-anchored caption: the last Rendered Line's baseline sits at a fixed
  * distance from the bottom of the Frame, and additional lines grow upward.
  * Background boxes render per line. See ADR 0002.
  */
-export function Caption({ text, style, measurer }: CaptionProps) {
-  const [visibleText, setVisibleText] = useState(text)
+export function Caption({ lines, style }: CaptionProps) {
+  const [visibleLines, setVisibleLines] = useState(lines)
   const [opacity, setOpacity] = useState(1)
   const fadeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const linesKeyValue = linesKey(lines)
 
   useEffect(() => {
     if (fadeTimer.current) clearTimeout(fadeTimer.current)
 
-    if (style.transitionFadeMs <= 0 || text === visibleText) {
-      setVisibleText(text)
+    if (style.transitionFadeMs <= 0 || linesKeyValue === linesKey(visibleLines)) {
+      setVisibleLines(lines)
       setOpacity(1)
       return
     }
 
     setOpacity(0)
     fadeTimer.current = setTimeout(() => {
-      setVisibleText(text)
+      setVisibleLines(lines)
       setOpacity(1)
     }, style.transitionFadeMs / 2)
 
     return () => {
       if (fadeTimer.current) clearTimeout(fadeTimer.current)
     }
-  }, [text, style.transitionFadeMs, visibleText])
+  }, [lines, linesKeyValue, style.transitionFadeMs, visibleLines])
 
-  if (!visibleText) return null
+  if (visibleLines.length === 0) return null
 
-  const font = { fontFamily: style.fontFamily, fontWeight: style.fontWeight, fontSizePx: style.fontSizePx }
   const maxWidthPx = styleToMaxWidthPx(style)
   const bottomPx = styleToBottomMarginPx(style)
-  const displayText = style.uppercase ? visibleText.toUpperCase() : visibleText
-  const lines = wrapText(displayText, maxWidthPx, font, measurer)
+  const displayLines = visibleLines.map((line) => ({
+    ...line,
+    text: style.uppercase ? line.text.toUpperCase() : line.text,
+  }))
   const lineGapPx = Math.max((style.lineHeight - 1) * style.fontSizePx, 0)
   const position = positionStyles(style.position)
   const fadeMs = style.transitionFadeMs
@@ -132,9 +139,9 @@ export function Caption({ text, style, measurer }: CaptionProps) {
         transition: fadeMs > 0 ? `opacity ${fadeMs / 2}ms ease-in-out` : undefined,
       }}
     >
-      {lines.map((line, index) => (
+      {displayLines.map((line, index) => (
         <div key={index} style={{ width: '100%', textAlign: style.align }}>
-          <LineContent line={line} style={style} />
+          <LineContent line={line.text} style={style} settled={line.settled} />
         </div>
       ))}
     </div>

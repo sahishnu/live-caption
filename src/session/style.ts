@@ -31,6 +31,7 @@ export const defaultStyleConfig: StyleConfig = {
   chromaPreset: 'green',
   captionsShown: true,
   idleClearSeconds: 8,
+  hybridLiveDraft: false,
 }
 
 export function chromaColorFromPreset(preset: ChromaPreset): string {

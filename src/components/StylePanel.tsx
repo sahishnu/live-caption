@@ -216,6 +216,11 @@ export function StylePanel({ style, dispatch }: StylePanelProps) {
         />
         <SelectField label="Chroma background" value={style.chromaPreset} options={chromaOptions} onChange={(chromaPreset) => update({ chromaPreset })} />
         <CheckboxField label="Captions shown" checked={style.captionsShown} onChange={(captionsShown) => update({ captionsShown })} />
+        <CheckboxField
+          label="Hybrid live draft"
+          checked={style.hybridLiveDraft}
+          onChange={(hybridLiveDraft) => update({ hybridLiveDraft })}
+        />
         <NumberField
           label="Idle clear (seconds, 0 = never)"
           value={style.idleClearSeconds}

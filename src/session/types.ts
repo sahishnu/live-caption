@@ -1,12 +1,25 @@
+import type { Measurer } from './measurer'
+
 export type Mode = 'step' | 'typing'
 
 export type CueKind = 'line' | 'note' | 'marker'
+
+export interface CueSegment {
+  text: string
+  dimmed?: boolean
+}
 
 export interface Cue {
   id: string
   text: string
   speaker?: string
   kind: CueKind
+  segments?: CueSegment[]
+}
+
+export interface ImportPreview {
+  sourceText: string
+  cues: Cue[]
 }
 
 export interface Script {
@@ -45,6 +58,7 @@ export interface StyleConfig {
   chromaPreset: ChromaPreset
   captionsShown: boolean
   idleClearSeconds: number
+  hybridLiveDraft: boolean
 }
 
 export interface TypingBuffer {
@@ -61,11 +75,19 @@ export interface SessionState {
   mode: Mode
   typingBuffer: TypingBuffer
   style: StyleConfig
+  lastTakeAt: number | null
+  importPreview: ImportPreview | null
 }
 
 export type SessionAction =
   | { type: 'draft/changed'; text: string }
-  | { type: 'take' }
+  | { type: 'take'; measurer: Measurer }
   | { type: 'clear' }
+  | { type: 'mode/changed'; mode: Mode; measurer: Measurer }
+  | { type: 'idle/check'; now: number }
   | { type: 'style/updated'; patch: Partial<StyleConfig> }
   | { type: 'style/reset' }
+  | { type: 'import/pasted'; text: string }
+  | { type: 'import/reclassify'; cueId: string }
+  | { type: 'import/confirmed'; name: string }
+  | { type: 'import/cancelled' }

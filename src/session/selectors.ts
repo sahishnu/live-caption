@@ -1,11 +1,31 @@
 import type { Measurer, MeasuredFont } from './measurer'
 import { chromaColorFromPreset } from './style'
-import type { SessionState, StyleConfig } from './types'
+import type { Cue, SessionState, StyleConfig } from './types'
 import { FRAME_HEIGHT, FRAME_WIDTH } from '../frame/constants'
 
+export interface DisplayLine {
+  text: string
+  settled: boolean
+}
+
+export function selectHasOnAir(state: SessionState): boolean {
+  if (!state.style.captionsShown) return false
+  if (state.cleared) return false
+  if (state.mode === 'typing') return state.typingBuffer.lines.length > 0
+  return state.onAirText !== null && state.onAirText.length > 0
+}
+
 export function selectOnAir(state: SessionState): string | null {
-  if (!state.style.captionsShown) return null
-  return state.cleared ? null : state.onAirText
+  if (!selectHasOnAir(state)) return null
+  if (state.mode === 'typing') {
+    return state.typingBuffer.lines.join('\n')
+  }
+  return state.onAirText
+}
+
+export function selectCommittedLines(state: SessionState): string[] {
+  if (!selectHasOnAir(state) || state.mode !== 'typing') return []
+  return state.typingBuffer.lines
 }
 
 export function selectDraft(state: SessionState): string {
@@ -57,9 +77,51 @@ export function wrapText(text: string, maxWidthPx: number, font: MeasuredFont, m
   return lines
 }
 
+/** Appends new Rendered Lines to the buffer, rolling up or spilling per ADR 0005. */
+export function appendRenderedLines(existingLines: string[], newLines: string[], maxLines: number): string[] {
+  if (newLines.length === 0) return existingLines
+  if (newLines.length > maxLines) return newLines
+
+  const combined = [...existingLines, ...newLines]
+  return combined.slice(-maxLines)
+}
+
+export function selectDisplayLines(state: SessionState, measurer: Measurer): DisplayLine[] {
+  if (state.mode === 'step') {
+    const text = state.cleared || !state.onAirText ? null : state.onAirText
+    if (!text || !state.style.captionsShown) return []
+
+    const font = styleToMeasuredFont(state.style)
+    const maxWidthPx = styleToMaxWidthPx(state.style)
+    return wrapText(text, maxWidthPx, font, measurer).map((line) => ({ text: line, settled: true }))
+  }
+
+  const committed = selectCommittedLines(state).map((text) => ({ text, settled: true }))
+
+  if (!state.style.hybridLiveDraft) return committed
+
+  const draft = selectDraft(state)
+  if (!draft) return committed
+
+  const font = styleToMeasuredFont(state.style)
+  const maxWidthPx = styleToMaxWidthPx(state.style)
+  const draftLines = wrapText(draft, maxWidthPx, font, measurer).map((text) => ({
+    text,
+    settled: false,
+  }))
+
+  return [...committed, ...draftLines]
+}
+
 /** On-air text wrapped with the live Style Config — reflows when style changes, no re-parse. */
 export function selectOnAirLines(state: SessionState, measurer: Measurer): string[] {
-  const text = selectOnAir(state)
+  if (!selectHasOnAir(state)) return []
+
+  if (state.mode === 'typing') {
+    return selectDisplayLines(state, measurer).map((line) => line.text)
+  }
+
+  const text = state.onAirText
   if (!text) return []
 
   return wrapText(text, styleToMaxWidthPx(state.style), styleToMeasuredFont(state.style), measurer)
@@ -68,4 +130,23 @@ export function selectOnAirLines(state: SessionState, measurer: Measurer): strin
 /** Returns true when on-air text wraps to more lines than the Style Config allows. */
 export function selectOnAirOverflow(state: SessionState, measurer: Measurer): boolean {
   return selectOnAirLines(state, measurer).length > state.style.maxLines
+}
+
+export function selectImportPreview(state: SessionState) {
+  return state.importPreview
+}
+
+export function selectActiveScript(state: SessionState) {
+  if (!state.activeScriptId) return null
+  return state.scriptLibrary.find((script) => script.id === state.activeScriptId) ?? null
+}
+
+export function selectActiveCues(state: SessionState): Cue[] {
+  return selectActiveScript(state)?.cues ?? []
+}
+
+/** Display text for a Cue — inline notes are already stripped from `text`. */
+export function selectCueDisplayText(cue: Cue): string {
+  if (cue.kind !== 'line') return ''
+  return cue.text
 }

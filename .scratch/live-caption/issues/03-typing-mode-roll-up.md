@@ -4,7 +4,7 @@
 
 **Blocked by:** 02 — Style Config and the WYSIWYG preview
 
-**Status:** ready-for-agent
+**Status:** done
 
 ## What to build
 
