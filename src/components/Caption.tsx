@@ -22,10 +22,16 @@ export function Caption({ text, style, measurer }: CaptionProps) {
   const bottomPx = (style.bottomMarginPct / 100) * FRAME_HEIGHT
   const lines = wrapText(text, maxWidthPx, font, measurer)
 
+  // Each line keeps a fixed line-height of 1, so the last line's own box (and
+  // therefore its baseline's offset from the Frame bottom) never changes.
+  // The `lineHeight` style setting instead controls the *gap between* lines,
+  // so bottomPx stays baseline-anchored regardless of that setting. See ADR 0002.
+  const lineGapPx = Math.max((style.lineHeight - 1) * style.fontSizePx, 0)
+
   return (
     <div
       className="absolute flex flex-col items-center justify-end"
-      style={{ left: '50%', transform: 'translateX(-50%)', bottom: bottomPx, width: maxWidthPx }}
+      style={{ left: '50%', transform: 'translateX(-50%)', bottom: bottomPx, width: maxWidthPx, gap: lineGapPx }}
     >
       {lines.map((line, index) => (
         <div
@@ -34,7 +40,7 @@ export function Caption({ text, style, measurer }: CaptionProps) {
             fontFamily: style.fontFamily,
             fontWeight: style.fontWeight,
             fontSize: style.fontSizePx,
-            lineHeight: style.lineHeight,
+            lineHeight: 1,
             color: style.color,
             textAlign: style.align,
             textTransform: style.uppercase ? 'uppercase' : 'none',

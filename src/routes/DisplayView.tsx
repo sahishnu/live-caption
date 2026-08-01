@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { Caption } from '../components/Caption'
 import { Frame } from '../components/Frame'
-import { createCanvasMeasurer } from '../session/measurer'
+import { createCanvasMeasurer, useFontReady } from '../session/measurer'
 import { selectOnAir } from '../session/selectors'
 import { useSession } from '../session/useSession'
 import { usePublishHeartbeat } from '../transport/heartbeat'
@@ -18,12 +18,17 @@ interface DisplayViewProps {
 export function DisplayView({ transport }: DisplayViewProps) {
   const [state] = useSession(transport)
   const measurer = useMemo(() => createCanvasMeasurer(), [])
+  const fontReady = useFontReady({
+    fontFamily: state.style.fontFamily,
+    fontWeight: state.style.fontWeight,
+    fontSizePx: state.style.fontSizePx,
+  })
 
   usePublishHeartbeat(transport)
 
   return (
     <Frame background={state.style.chromaColor}>
-      <Caption text={selectOnAir(state)} style={state.style} measurer={measurer} />
+      {fontReady && <Caption text={selectOnAir(state)} style={state.style} measurer={measurer} />}
     </Frame>
   )
 }

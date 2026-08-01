@@ -15,3 +15,11 @@ if (typeof globalThis.ResizeObserver === 'undefined') {
   }
   globalThis.ResizeObserver = ResizeObserverStub as unknown as typeof ResizeObserver
 }
+
+// jsdom has no font loading (no real fonts to load), so resolve immediately.
+if (typeof document !== 'undefined' && document.fonts === undefined) {
+  Object.defineProperty(document, 'fonts', {
+    value: { load: () => Promise.resolve([]) },
+    configurable: true,
+  })
+}
