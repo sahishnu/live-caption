@@ -1,5 +1,6 @@
 import type { Measurer, MeasuredFont } from './measurer'
 import { chromaColorFromPreset } from './style'
+import { firstTakeableIndex } from './stepMode'
 import type { Cue, SessionState, StyleConfig } from './types'
 import { FRAME_HEIGHT, FRAME_WIDTH } from '../frame/constants'
 
@@ -145,8 +146,52 @@ export function selectActiveCues(state: SessionState): Cue[] {
   return selectActiveScript(state)?.cues ?? []
 }
 
-/** Display text for a Cue — inline notes are already stripped from `text`. */
 export function selectCueDisplayText(cue: Cue): string {
-  if (cue.kind !== 'line') return ''
+  if (cue.kind === 'line') return cue.text
+  if (cue.kind === 'marker') return cue.text
   return cue.text
+}
+
+export function selectOnAirCue(state: SessionState): Cue | null {
+  const cues = selectActiveCues(state)
+  if (state.onAirCueIndex === null || state.onAirCueIndex >= cues.length) return null
+  return cues[state.onAirCueIndex] ?? null
+}
+
+export function selectNextCue(state: SessionState): Cue | null {
+  const cues = selectActiveCues(state)
+  if (cues.length === 0) return null
+  const index = firstTakeableIndex(cues, state.armedIndex)
+  if (index === null) return null
+  return cues[index] ?? null
+}
+
+export function selectCueOverflow(cue: Cue, style: StyleConfig, measurer: Measurer): boolean {
+  if (cue.kind !== 'line') return false
+  const font = styleToMeasuredFont(style)
+  const maxWidthPx = styleToMaxWidthPx(style)
+  const lines = wrapText(cue.text, maxWidthPx, font, measurer)
+  return lines.length > style.maxLines
+}
+
+export function selectOverflowCues(state: SessionState, measurer: Measurer): Cue[] {
+  return selectActiveCues(state).filter((cue) => selectCueOverflow(cue, state.style, measurer))
+}
+
+/** Maximum-width dummy caption lines for Calibration Mode. */
+export function selectCalibrationLines(style: StyleConfig, measurer: Measurer): DisplayLine[] {
+  const font = styleToMeasuredFont(style)
+  const maxWidthPx = styleToMaxWidthPx(style)
+  const fillChar = 'W'
+  const lines: string[] = []
+
+  for (let lineNum = 0; lineNum < style.maxLines; lineNum++) {
+    let text = ''
+    while (measurer(text + fillChar, font) <= maxWidthPx) {
+      text += fillChar
+    }
+    lines.push(text.length > 0 ? text : fillChar)
+  }
+
+  return lines.map((text) => ({ text, settled: true }))
 }

@@ -14,6 +14,10 @@ function rehydrateState(persisted: SessionState | null): SessionState {
     typingBuffer: persisted.typingBuffer ?? createInitialState().typingBuffer,
     lastTakeAt: persisted.lastTakeAt ?? null,
     importPreview: persisted.importPreview ?? null,
+    scoutIndex: persisted.scoutIndex ?? createInitialState().scoutIndex,
+    onAirCueIndex: persisted.onAirCueIndex ?? null,
+    preClearOnAir: persisted.preClearOnAir ?? null,
+    calibrationMode: false,
   }
 }
 

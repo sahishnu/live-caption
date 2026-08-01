@@ -66,10 +66,18 @@ export interface TypingBuffer {
   lines: string[]
 }
 
+export interface PreClearOnAir {
+  index: number
+  text: string
+}
+
 export interface SessionState {
   scriptLibrary: Script[]
   activeScriptId: string | null
   armedIndex: number
+  scoutIndex: number
+  onAirCueIndex: number | null
+  preClearOnAir: PreClearOnAir | null
   onAirText: string | null
   cleared: boolean
   mode: Mode
@@ -77,12 +85,16 @@ export interface SessionState {
   style: StyleConfig
   lastTakeAt: number | null
   importPreview: ImportPreview | null
+  calibrationMode: boolean
 }
 
 export type SessionAction =
   | { type: 'draft/changed'; text: string }
-  | { type: 'take'; measurer: Measurer }
+  | { type: 'take'; measurer: Measurer; now: number }
+  | { type: 'back'; now: number }
   | { type: 'clear' }
+  | { type: 'step/arm'; index: number }
+  | { type: 'step/scout'; index: number }
   | { type: 'mode/changed'; mode: Mode; measurer: Measurer }
   | { type: 'idle/check'; now: number }
   | { type: 'style/updated'; patch: Partial<StyleConfig> }
@@ -91,3 +103,4 @@ export type SessionAction =
   | { type: 'import/reclassify'; cueId: string }
   | { type: 'import/confirmed'; name: string }
   | { type: 'import/cancelled' }
+  | { type: 'calibration/toggled' }

@@ -8,12 +8,16 @@ import {
   selectDraft,
   selectHasOnAir,
   selectImportPreview,
+  selectNextCue,
   selectOnAir,
   selectOnAirLines,
+  selectOverflowCues,
 } from './selectors'
+import { TAKE_DEBOUNCE_MS } from './stepMode'
 import type { Cue } from './types'
 
 const measurer = createFakeMeasurer(10)
+const NOW = 1_000_000
 
 const WORKED_EXAMPLE = `PAVAN: Left, left... now straight, keep it straight... || right, right, right... okay, stop.
 PRAKASH: What happened? What happened?
@@ -39,12 +43,21 @@ function cueTexts(cues: Cue[]) {
   return cues.map((cue) => cue.text)
 }
 
-function take(state: ReturnType<typeof createInitialState>, text?: string) {
+function take(state: ReturnType<typeof createInitialState>, text?: string, now = NOW) {
   let next = state
   if (text !== undefined) {
     next = sessionReducer(next, { type: 'draft/changed', text })
   }
-  return sessionReducer(next, { type: 'take', measurer })
+  return sessionReducer(next, { type: 'take', measurer, now })
+}
+
+function back(state: ReturnType<typeof createInitialState>, now = NOW) {
+  return sessionReducer(state, { type: 'back', now })
+}
+
+function loadScript(text: string, name = 'Test script') {
+  let state = sessionReducer(createInitialState(), { type: 'import/pasted', text })
+  return sessionReducer(state, { type: 'import/confirmed', name })
 }
 
 describe('sessionReducer', () => {
@@ -403,5 +416,133 @@ describe('script import', () => {
 
     expect(selectImportPreview(state)).toBeNull()
     expect(selectActiveCues(state)).toHaveLength(0)
+  })
+})
+
+describe('step mode cueing', () => {
+  const SCRIPT = `ANN: First line.
+
+ANN: Second line.
+
+(Stage direction.)
+
+BOB: Third line.
+
+[VIDEO] Roll cue
+
+ANN: After video.`
+
+  it('take pushes the armed cue on air and advances the armed index', () => {
+    let state = loadScript(SCRIPT)
+    state = take(state)
+
+    expect(selectOnAir(state)).toBe('First line.')
+    expect(state.armedIndex).toBe(1)
+    expect(state.onAirCueIndex).toBe(0)
+    expect(state.cleared).toBe(false)
+  })
+
+  it('take skips note rows automatically', () => {
+    let state = loadScript(SCRIPT)
+    state = take(state, undefined, NOW)
+    state = take(state, undefined, NOW + TAKE_DEBOUNCE_MS + 1)
+    state = take(state, undefined, NOW + TAKE_DEBOUNCE_MS * 2 + 2)
+
+    expect(selectOnAir(state)).toBe('Third line.')
+    expect(state.onAirCueIndex).toBe(3)
+  })
+
+  it('take onto a marker clears the display', () => {
+    let state = loadScript(SCRIPT)
+    for (let i = 0; i < 4; i++) {
+      state = take(state, undefined, NOW + i * (TAKE_DEBOUNCE_MS + 1))
+    }
+
+    expect(selectHasOnAir(state)).toBe(false)
+    expect(state.cleared).toBe(true)
+    expect(state.onAirCueIndex).toBe(4)
+  })
+
+  it('back returns to the previous cue', () => {
+    let state = loadScript(SCRIPT)
+    state = take(state)
+    state = take(state, undefined, NOW + TAKE_DEBOUNCE_MS + 1)
+    state = back(state, NOW + TAKE_DEBOUNCE_MS * 2 + 2)
+
+    expect(selectOnAir(state)).toBe('First line.')
+    expect(state.onAirCueIndex).toBe(0)
+  })
+
+  it('clear blanks the caption without advancing the armed index', () => {
+    let state = loadScript(SCRIPT)
+    state = take(state)
+    const armedBefore = state.armedIndex
+    state = sessionReducer(state, { type: 'clear' })
+
+    expect(selectHasOnAir(state)).toBe(false)
+    expect(state.cleared).toBe(true)
+    expect(state.armedIndex).toBe(armedBefore)
+  })
+
+  it('back after clear restores the previously on-air cue', () => {
+    let state = loadScript(SCRIPT)
+    state = take(state)
+    state = sessionReducer(state, { type: 'clear' })
+    state = back(state, NOW + TAKE_DEBOUNCE_MS + 1)
+
+    expect(selectOnAir(state)).toBe('First line.')
+    expect(state.cleared).toBe(false)
+    expect(state.preClearOnAir).toBeNull()
+  })
+
+  it('arm selects a cue as next without pushing it', () => {
+    let state = loadScript(SCRIPT)
+    state = sessionReducer(state, { type: 'step/arm', index: 3 })
+
+    expect(selectHasOnAir(state)).toBe(false)
+    expect(state.armedIndex).toBe(3)
+    expect(selectNextCue(state)?.text).toBe('Third line.')
+  })
+
+  it('scout moves selection without changing on air', () => {
+    let state = loadScript(SCRIPT)
+    state = take(state)
+    state = sessionReducer(state, { type: 'step/scout', index: 5 })
+
+    expect(selectOnAir(state)).toBe('First line.')
+    expect(state.scoutIndex).toBe(5)
+    expect(state.armedIndex).toBe(1)
+  })
+
+  it('debounces rapid takes so a cue is not skipped', () => {
+    let state = loadScript(SCRIPT)
+    state = take(state, undefined, NOW)
+    state = take(state, undefined, NOW + 50)
+
+    expect(selectOnAir(state)).toBe('First line.')
+    expect(state.armedIndex).toBe(1)
+  })
+
+  it('calibration mode toggles off by default', () => {
+    const state = createInitialState()
+    expect(state.calibrationMode).toBe(false)
+  })
+
+  it('calibration/toggled flips calibration mode', () => {
+    let state = createInitialState()
+    state = sessionReducer(state, { type: 'calibration/toggled' })
+    expect(state.calibrationMode).toBe(true)
+    state = sessionReducer(state, { type: 'calibration/toggled' })
+    expect(state.calibrationMode).toBe(false)
+  })
+
+  it('flags overflowing cues at the current style config', () => {
+    let state = loadScript('ANN: one two three four five six seven eight nine ten eleven twelve.')
+    state = sessionReducer(state, {
+      type: 'style/updated',
+      patch: { maxWidthPct: 10, maxLines: 2 },
+    })
+
+    expect(selectOverflowCues(state, measurer).length).toBeGreaterThan(0)
   })
 })

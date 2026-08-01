@@ -1,13 +1,17 @@
 import { useMemo, useState } from 'react'
 import { ImportReview } from '../components/ImportReview'
+import { PreflightChecklist } from '../components/PreflightChecklist'
 import { PreviewFrame } from '../components/PreviewFrame'
+import { StepModePanel } from '../components/StepModePanel'
 import { StylePanel } from '../components/StylePanel'
+import { useCueingKeys } from '../hooks/useCueingKeys'
 import { createCanvasMeasurer } from '../session/measurer'
 import { selectActiveCues, selectDraft, selectImportPreview } from '../session/selectors'
 import { speakerColor } from '../session/speakers'
 import { useSession } from '../session/useSession'
 import type { Mode } from '../session/types'
 import { useConnectionStatus } from '../transport/heartbeat'
+import { requestDisplayFullscreen, useDisplayMeta } from '../transport/displayMeta'
 import type { Transport } from '../transport/types'
 
 interface ConsoleProps {
@@ -19,24 +23,69 @@ const modeOptions: { value: Mode; label: string }[] = [
   { value: 'step', label: 'Step Mode' },
 ]
 
-/** The operator route: preview, style controls, draft field, Take, and connection badge. */
+/** The operator route: preview, style controls, cueing, and connection status. */
 export function Console({ transport }: ConsoleProps) {
   const [state, dispatch] = useSession(transport)
   const connected = useConnectionStatus(transport)
+  const displayMeta = useDisplayMeta(transport)
   const draft = selectDraft(state)
   const measurer = useMemo(() => createCanvasMeasurer(), [])
   const importPreview = selectImportPreview(state)
   const activeCues = selectActiveCues(state)
   const [scriptPaste, setScriptPaste] = useState('')
+  const stepModeActive = state.mode === 'step' && activeCues.length > 0
+  const keysInactive = useCueingKeys({
+    enabled: stepModeActive,
+    dispatch,
+    measurer,
+  })
+
+  const now = () => Date.now()
 
   return (
     <div className="mx-auto flex min-h-screen max-w-6xl flex-col gap-6 p-8 text-white">
-      <div className="flex items-center gap-2">
-        <span
-          className={`h-2.5 w-2.5 rounded-full ${connected ? 'bg-green-500' : 'bg-red-500'}`}
-          aria-hidden="true"
-        />
-        <span className="text-sm">{connected ? 'Display connected' : 'Display not connected'}</span>
+      <div className="flex flex-wrap items-center gap-4">
+        <div className="flex items-center gap-2">
+          <span
+            className={`h-2.5 w-2.5 rounded-full ${connected ? 'bg-green-500' : 'bg-red-500'}`}
+            aria-hidden="true"
+          />
+          <span className="text-sm">{connected ? 'Display connected' : 'Display not connected'}</span>
+        </div>
+
+        {!connected && (
+          <span className="rounded bg-red-900 px-3 py-1 text-sm font-semibold text-red-200" role="alert">
+            Display not connected — captions will not appear on the feed
+          </span>
+        )}
+      </div>
+
+      <PreflightChecklist
+        state={state}
+        measurer={measurer}
+        connected={connected}
+        displayFullscreen={displayMeta.fullscreen}
+      />
+
+      <div className="flex flex-wrap gap-3">
+        <button
+          type="button"
+          className={`rounded px-4 py-2 font-semibold ${
+            state.calibrationMode
+              ? 'bg-amber-500 text-black hover:bg-amber-400'
+              : 'bg-neutral-700 hover:bg-neutral-600'
+          }`}
+          onClick={() => dispatch({ type: 'calibration/toggled' })}
+        >
+          {state.calibrationMode ? 'Calibration ON — click to turn off' : 'Calibration Mode'}
+        </button>
+        <button
+          type="button"
+          className="rounded bg-neutral-700 px-4 py-2 font-semibold hover:bg-neutral-600"
+          onClick={() => requestDisplayFullscreen(transport)}
+        >
+          Fullscreen Display View
+        </button>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
@@ -60,22 +109,30 @@ export function Console({ transport }: ConsoleProps) {
             </select>
           </label>
 
-          <textarea
-            aria-label="Caption text"
-            className="min-h-24 rounded border border-neutral-700 bg-neutral-900 p-3 text-base"
-            value={draft}
-            onChange={(event) => dispatch({ type: 'draft/changed', text: event.target.value })}
-          />
+          {state.mode === 'typing' && (
+            <>
+              <textarea
+                aria-label="Caption text"
+                className="min-h-24 rounded border border-neutral-700 bg-neutral-900 p-3 text-base"
+                value={draft}
+                onChange={(event) => dispatch({ type: 'draft/changed', text: event.target.value })}
+              />
 
-          <button
-            type="button"
-            className="rounded bg-blue-600 px-4 py-3 text-lg font-semibold hover:bg-blue-500"
-            onClick={() => dispatch({ type: 'take', measurer })}
-          >
-            Take
-          </button>
+              <button
+                type="button"
+                className="rounded bg-blue-600 px-4 py-3 text-lg font-semibold hover:bg-blue-500"
+                onClick={() => dispatch({ type: 'take', measurer, now: now() })}
+              >
+                Take
+              </button>
+            </>
+          )}
         </div>
       </div>
+
+      {stepModeActive && (
+        <StepModePanel state={state} dispatch={dispatch} measurer={measurer} keysInactive={keysInactive} />
+      )}
 
       <StylePanel style={state.style} dispatch={dispatch} />
 
@@ -104,7 +161,7 @@ export function Console({ transport }: ConsoleProps) {
         )}
       </section>
 
-      {activeCues.length > 0 && (
+      {activeCues.length > 0 && !stepModeActive && (
         <section className="flex flex-col gap-3 rounded border border-neutral-800 p-4">
           <h2 className="text-lg font-semibold">Loaded cues ({activeCues.length})</h2>
           <div className="flex max-h-64 flex-col gap-2 overflow-y-auto pr-1">
