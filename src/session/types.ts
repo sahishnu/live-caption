@@ -104,3 +104,6 @@ export type SessionAction =
   | { type: 'import/confirmed'; name: string }
   | { type: 'import/cancelled' }
   | { type: 'calibration/toggled' }
+  | { type: 'cue/edit'; cueId: string; text: string }
+  | { type: 'cue/split'; cueId: string; offset: number }
+  | { type: 'cue/merge'; cueId: string; direction: 'prev' | 'next' }

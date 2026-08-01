@@ -1,4 +1,11 @@
 import type { Measurer } from './measurer'
+import {
+  adjustIndexAfterMerge,
+  adjustIndexAfterSplit,
+  editCueText,
+  mergeCue,
+  splitCueAt,
+} from './cueEditing'
 import { nextCueKind, parseScript } from './parseScript'
 import {
   appendRenderedLines,
@@ -9,7 +16,7 @@ import {
 } from './selectors'
 import { cueOnAirText, firstTakeableIndex, lastTakeableIndex, TAKE_DEBOUNCE_MS } from './stepMode'
 import { defaultStyleConfig, mergeStyleConfig } from './style'
-import type { SessionAction, SessionState } from './types'
+import type { SessionAction, SessionState, Cue } from './types'
 
 export { defaultStyleConfig, mergeStyleConfig } from './style'
 
@@ -167,6 +174,22 @@ function stepClear(state: SessionState): SessionState {
     onAirText: null,
     cleared: true,
     lastTakeAt: null,
+  }
+}
+
+function updateActiveScriptCues(
+  state: SessionState,
+  newCues: Cue[],
+  patch: Partial<Pick<SessionState, 'armedIndex' | 'scoutIndex' | 'onAirCueIndex' | 'onAirText'>> = {},
+): SessionState {
+  if (!state.activeScriptId) return state
+
+  return {
+    ...state,
+    ...patch,
+    scriptLibrary: state.scriptLibrary.map((script) =>
+      script.id === state.activeScriptId ? { ...script, cues: newCues } : script,
+    ),
   }
 }
 
@@ -346,6 +369,73 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
         ...state,
         calibrationMode: !state.calibrationMode,
       }
+
+    case 'cue/edit': {
+      const cues = selectActiveCues(state)
+      const newCues = editCueText(cues, action.cueId, action.text)
+      if (!newCues) return state
+
+      const editedIndex = newCues.findIndex((cue) => cue.id === action.cueId)
+      const onAirPatch =
+        state.onAirCueIndex === editedIndex
+          ? { onAirText: action.text, onAirCueIndex: editedIndex }
+          : {}
+
+      return updateActiveScriptCues(state, newCues, onAirPatch)
+    }
+
+    case 'cue/split': {
+      const cues = selectActiveCues(state)
+      const result = splitCueAt(cues, action.cueId, action.offset)
+      if (!result) return state
+
+      const { cues: newCues, splitIndex } = result
+      const armedIndex = adjustIndexAfterSplit(state.armedIndex, splitIndex)
+      const scoutIndex = adjustIndexAfterSplit(state.scoutIndex, splitIndex)
+      const onAirCueIndex =
+        state.onAirCueIndex === null
+          ? null
+          : adjustIndexAfterSplit(state.onAirCueIndex, splitIndex)
+
+      let onAirText = state.onAirText
+      if (state.onAirCueIndex === splitIndex) {
+        onAirText = newCues[splitIndex]!.text
+      }
+
+      return updateActiveScriptCues(state, newCues, {
+        armedIndex,
+        scoutIndex,
+        onAirCueIndex,
+        onAirText,
+      })
+    }
+
+    case 'cue/merge': {
+      const cues = selectActiveCues(state)
+      const result = mergeCue(cues, action.cueId, action.direction)
+      if (!result) return state
+
+      const { cues: newCues, mergedIndex, removedIndex } = result
+      const armedIndex = adjustIndexAfterMerge(state.armedIndex, mergedIndex, removedIndex)
+      const scoutIndex = adjustIndexAfterMerge(state.scoutIndex, mergedIndex, removedIndex)
+      const onAirCueIndex = adjustIndexAfterMerge(state.onAirCueIndex, mergedIndex, removedIndex)
+
+      let onAirText = state.onAirText
+      if (
+        state.onAirCueIndex !== null &&
+        (state.onAirCueIndex === mergedIndex || state.onAirCueIndex === removedIndex)
+      ) {
+        onAirText =
+          onAirCueIndex !== null ? cueOnAirText(newCues[onAirCueIndex]!) : null
+      }
+
+      return updateActiveScriptCues(state, newCues, {
+        armedIndex: armedIndex ?? state.armedIndex,
+        scoutIndex: scoutIndex ?? state.scoutIndex,
+        onAirCueIndex,
+        onAirText,
+      })
+    }
 
     default:
       return state

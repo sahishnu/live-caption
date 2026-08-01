@@ -546,3 +546,142 @@ ANN: After video.`
     expect(selectOverflowCues(state, measurer).length).toBeGreaterThan(0)
   })
 })
+
+describe('cue editing', () => {
+  function loadTwoLineScript() {
+    return loadScript('ANN: First cue text.\n\nANN: Second cue text.')
+  }
+
+  it('edits a cue inline', () => {
+    let state = loadTwoLineScript()
+    const cueId = selectActiveCues(state)[0]!.id
+    state = sessionReducer(state, { type: 'cue/edit', cueId, text: 'Revised first cue.' })
+
+    expect(selectActiveCues(state)[0]?.text).toBe('Revised first cue.')
+  })
+
+  it('splits a cue at the cursor without losing text', () => {
+    let state = loadTwoLineScript()
+    const cue = selectActiveCues(state)[0]!
+    const offset = 'First cue'.length
+    state = sessionReducer(state, { type: 'cue/split', cueId: cue.id, offset })
+
+    const cues = selectActiveCues(state)
+    expect(cues).toHaveLength(3)
+    expect(cues[0]?.text).toBe('First cue')
+    expect(cues[1]?.text).toBe(' text.')
+  })
+
+  it('merges a cue with the next cue', () => {
+    let state = loadTwoLineScript()
+    const firstId = selectActiveCues(state)[0]!.id
+    state = sessionReducer(state, { type: 'cue/merge', cueId: firstId, direction: 'next' })
+
+    const cues = selectActiveCues(state)
+    expect(cues).toHaveLength(1)
+    expect(cues[0]?.text).toBe('First cue text.Second cue text.')
+  })
+
+  it('merges a cue with the previous cue', () => {
+    let state = loadTwoLineScript()
+    const secondId = selectActiveCues(state)[1]!.id
+    state = sessionReducer(state, { type: 'cue/merge', cueId: secondId, direction: 'prev' })
+
+    const cues = selectActiveCues(state)
+    expect(cues).toHaveLength(1)
+    expect(cues[0]?.text).toBe('First cue text.Second cue text.')
+  })
+
+  it('split then merge returns the original text exactly', () => {
+    let state = loadTwoLineScript()
+    const cue = selectActiveCues(state)[0]!
+    const originalText = cue.text
+    const offset = 5
+
+    state = sessionReducer(state, { type: 'cue/split', cueId: cue.id, offset })
+    const rightId = selectActiveCues(state)[1]!.id
+    state = sessionReducer(state, { type: 'cue/merge', cueId: rightId, direction: 'prev' })
+
+    expect(selectActiveCues(state)[0]?.text).toBe(originalText)
+  })
+
+  it('preserves the full script text across split and merge', () => {
+    let state = loadTwoLineScript()
+    const before = cueTexts(selectActiveCues(state)).join('')
+
+    const first = selectActiveCues(state)[0]!
+    state = sessionReducer(state, { type: 'cue/split', cueId: first.id, offset: 5 })
+    const rightId = selectActiveCues(state)[1]!.id
+    state = sessionReducer(state, { type: 'cue/merge', cueId: rightId, direction: 'prev' })
+
+    const after = cueTexts(selectActiveCues(state)).join('')
+    expect(after).toBe(before)
+  })
+
+  it('overflow flags change when font size increases without re-parse', () => {
+    const fontAwareMeasurer: typeof measurer = (text, font) => text.length * font.fontSizePx * 0.5
+
+    let state = loadScript('ANN: one two three four five six seven eight nine ten eleven twelve.')
+    state = sessionReducer(state, {
+      type: 'style/updated',
+      patch: { maxWidthPct: 50, maxLines: 2, fontSizePx: 40 },
+    })
+
+    const beforeOverflow = selectOverflowCues(state, fontAwareMeasurer).length
+    state = sessionReducer(state, {
+      type: 'style/updated',
+      patch: { fontSizePx: 80 },
+    })
+    const afterOverflow = selectOverflowCues(state, fontAwareMeasurer).length
+
+    expect(afterOverflow).toBeGreaterThan(beforeOverflow)
+    expect(selectActiveCues(state).length).toBeGreaterThan(0)
+  })
+
+  it('overflow flags change when max width narrows without re-parse', () => {
+    let state = loadScript('ANN: one two three four five six seven eight nine ten eleven twelve.')
+    state = sessionReducer(state, {
+      type: 'style/updated',
+      patch: { maxWidthPct: 80, maxLines: 2 },
+    })
+
+    const beforeOverflow = selectOverflowCues(state, measurer).length
+    state = sessionReducer(state, {
+      type: 'style/updated',
+      patch: { maxWidthPct: 15 },
+    })
+    const afterOverflow = selectOverflowCues(state, measurer).length
+
+    expect(afterOverflow).toBeGreaterThan(beforeOverflow)
+  })
+
+  it('an overflowing cue on air spills to extra lines rather than clipping', () => {
+    let state = loadScript('ANN: one two three four five six seven eight nine ten eleven twelve.')
+    state = sessionReducer(state, {
+      type: 'style/updated',
+      patch: { maxWidthPct: 10, maxLines: 2 },
+    })
+    state = take(state)
+
+    const lines = selectOnAirLines(state, measurer)
+    expect(lines.length).toBeGreaterThan(state.style.maxLines)
+    expect(lines.join(' ')).toContain('twelve')
+  })
+
+  it('editing the on-air cue updates on-air text', () => {
+    let state = loadTwoLineScript()
+    state = take(state)
+    const onAirCue = selectActiveCues(state)[0]!
+    state = sessionReducer(state, { type: 'cue/edit', cueId: onAirCue.id, text: 'Live edit.' })
+
+    expect(selectOnAir(state)).toBe('Live edit.')
+  })
+
+  it('does not split note rows or markers', () => {
+    const state = loadScript('(Stage note.)\n\nANN: Dialogue.')
+    const noteId = selectActiveCues(state)[0]!.id
+    const next = sessionReducer(state, { type: 'cue/split', cueId: noteId, offset: 3 })
+
+    expect(selectActiveCues(next)).toHaveLength(2)
+  })
+})
