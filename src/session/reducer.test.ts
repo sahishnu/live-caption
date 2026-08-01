@@ -55,8 +55,8 @@ function back(state: ReturnType<typeof createInitialState>, now = NOW) {
   return sessionReducer(state, { type: 'back', now })
 }
 
-function loadScript(text: string, name = 'Test script') {
-  let state = sessionReducer(createInitialState(), { type: 'import/pasted', text })
+function loadScript(text: string, name = 'Test script', format: 'dialogue' | 'transcript' = 'dialogue') {
+  let state = sessionReducer(createInitialState(), { type: 'import/pasted', text, format })
   return sessionReducer(state, { type: 'import/confirmed', name })
 }
 
@@ -288,6 +288,7 @@ describe('script import', () => {
     const state = sessionReducer(createInitialState(), {
       type: 'import/pasted',
       text: WORKED_EXAMPLE,
+      format: 'dialogue',
     })
 
     const preview = selectImportPreview(state)
@@ -300,6 +301,7 @@ describe('script import', () => {
     const state = sessionReducer(createInitialState(), {
       type: 'import/pasted',
       text: WORKED_EXAMPLE,
+      format: 'dialogue',
     })
 
     const cues = selectImportPreview(state)!.cues
@@ -333,6 +335,7 @@ describe('script import', () => {
     const state = sessionReducer(createInitialState(), {
       type: 'import/pasted',
       text: '**PAVAN:** Hello there.\n**PRAKASH:** Hi.',
+      format: 'dialogue',
     })
 
     const cues = selectImportPreview(state)!.cues
@@ -345,6 +348,7 @@ describe('script import', () => {
     const state = sessionReducer(createInitialState(), {
       type: 'import/pasted',
       text: 'ANN: Hi.\nBOB: Hey.',
+      format: 'dialogue',
     })
 
     const cues = selectImportPreview(state)!.cues
@@ -357,6 +361,7 @@ describe('script import', () => {
     const state = sessionReducer(createInitialState(), {
       type: 'import/pasted',
       text: 'ANN: First line.\n\nANN: Second line.',
+      format: 'dialogue',
     })
 
     const cues = selectImportPreview(state)!.cues
@@ -369,6 +374,7 @@ describe('script import', () => {
     const state = sessionReducer(createInitialState(), {
       type: 'import/pasted',
       text: 'ANN: Wait... (aside) ...go on.',
+      format: 'dialogue',
     })
 
     const cue = selectImportPreview(state)!.cues[0]
@@ -381,6 +387,7 @@ describe('script import', () => {
     let state = sessionReducer(createInitialState(), {
       type: 'import/pasted',
       text: 'ANN: Hello.',
+      format: 'dialogue',
     })
     const cueId = selectImportPreview(state)!.cues[0]!.id
 
@@ -398,6 +405,7 @@ describe('script import', () => {
     let state = sessionReducer(createInitialState(), {
       type: 'import/pasted',
       text: 'ANN: Hello.',
+      format: 'dialogue',
     })
     state = sessionReducer(state, { type: 'import/confirmed', name: 'Test script' })
 
@@ -411,11 +419,77 @@ describe('script import', () => {
     let state = sessionReducer(createInitialState(), {
       type: 'import/pasted',
       text: 'ANN: Hello.',
+      format: 'dialogue',
     })
     state = sessionReducer(state, { type: 'import/cancelled' })
 
     expect(selectImportPreview(state)).toBeNull()
     expect(selectActiveCues(state)).toHaveLength(0)
+  })
+
+  it('parses speaker-less transcript lines into separate Cues', () => {
+    const state = sessionReducer(createInitialState(), {
+      type: 'import/pasted',
+      text: 'First sentence from the video.\nSecond sentence here.\n\nThird paragraph line.',
+      format: 'transcript',
+    })
+
+    const cues = selectImportPreview(state)!.cues
+    expect(cueTexts(cues)).toEqual([
+      'First sentence from the video.',
+      'Second sentence here.',
+      'Third paragraph line.',
+    ])
+    expect(cues.every((cue) => cue.speaker === undefined)).toBe(true)
+  })
+
+  it('does not merge short sentences on the same transcript line', () => {
+    const state = sessionReducer(createInitialState(), {
+      type: 'import/pasted',
+      text: 'Hi. Hey.',
+      format: 'transcript',
+    })
+
+    const cues = selectImportPreview(state)!.cues
+    expect(cueTexts(cues)).toEqual(['Hi.', 'Hey.'])
+  })
+
+  it('splits transcript lines at || and supports markers and stage notes', () => {
+    const state = sessionReducer(createInitialState(), {
+      type: 'import/pasted',
+      text: `First beat. || Second beat.
+
+(Stage direction.)
+
+[VIDEO] Roll cue`,
+      format: 'transcript',
+    })
+
+    const cues = selectImportPreview(state)!.cues
+    expect(cueTexts(cues)).toEqual([
+      'First beat.',
+      'Second beat.',
+      '(Stage direction.)',
+      '[VIDEO] Roll cue',
+    ])
+    expect(cues[2]?.kind).toBe('note')
+    expect(cues[3]?.kind).toBe('marker')
+  })
+
+  it('leaves dialogue script parsing unchanged when format is dialogue', () => {
+    const dialogue = sessionReducer(createInitialState(), {
+      type: 'import/pasted',
+      text: 'Hi. Hey.',
+      format: 'dialogue',
+    })
+    const transcript = sessionReducer(createInitialState(), {
+      type: 'import/pasted',
+      text: 'Hi. Hey.',
+      format: 'transcript',
+    })
+
+    expect(selectImportPreview(dialogue)!.cues).toHaveLength(0)
+    expect(cueTexts(selectImportPreview(transcript)!.cues)).toEqual(['Hi.', 'Hey.'])
   })
 })
 
@@ -688,7 +762,7 @@ describe('cue editing', () => {
 
 describe('script library', () => {
   function loadNamedScript(text: string, name: string, initial = createInitialState()) {
-    let state = sessionReducer(initial, { type: 'import/pasted', text })
+    let state = sessionReducer(initial, { type: 'import/pasted', text, format: 'dialogue' })
     return sessionReducer(state, { type: 'import/confirmed', name })
   }
 

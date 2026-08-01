@@ -6,7 +6,7 @@ import {
   mergeCue,
   splitCueAt,
 } from './cueEditing'
-import { nextCueKind, parseScript } from './parseScript'
+import { nextCueKind, parseScript, parseTranscript } from './parseScript'
 import {
   appendRenderedLines,
   selectActiveCues,
@@ -319,7 +319,10 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
         ...state,
         importPreview: {
           sourceText: action.text,
-          cues: parseScript(action.text),
+          cues:
+            action.format === 'transcript'
+              ? parseTranscript(action.text)
+              : parseScript(action.text),
         },
       }
 

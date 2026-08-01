@@ -91,7 +91,8 @@ export function ScriptLibraryPanel({ state, dispatch }: ScriptLibraryPanelProps)
 
       {state.scriptLibrary.length === 0 ? (
         <p className="text-sm text-neutral-400">
-          No saved scripts yet. Import a script below to add one.
+          No saved scripts yet. Paste and parse a script in the Import section below, then confirm to
+          add it here.
         </p>
       ) : (
         <ul className="flex flex-col gap-2">

@@ -152,6 +152,31 @@ function segmentDialogue(text: string): string[] {
   return mergeShortSentences(splitSentences(text))
 }
 
+function segmentTranscriptLine(text: string): string[] {
+  const segments: string[] = []
+  for (const sentence of splitSentences(text)) {
+    segments.push(...splitLongSentence(sentence))
+  }
+  return segments
+}
+
+function flushTranscriptLine(lineText: string, cues: Cue[]): void {
+  const splitParts = lineText.split(/\s*\|\|\s*/)
+  for (const part of splitParts) {
+    const trimmed = part.trim()
+    if (!trimmed) continue
+
+    const { text: cleaned, segments: lineSegments } = stripInlineParentheticals(trimmed)
+    const dialogueSegments = segmentTranscriptLine(cleaned)
+
+    dialogueSegments.forEach((segment, index) => {
+      const segments =
+        lineSegments && index === dialogueSegments.length - 1 ? lineSegments : undefined
+      cues.push(createCue(segment, 'line', undefined, segments))
+    })
+  }
+}
+
 type ParsedLine =
   | { kind: 'blank' }
   | { kind: 'marker'; text: string }
@@ -280,6 +305,38 @@ export function parseScript(source: string): Cue[] {
   }
 
   flushDialogueIfNeeded()
+  return cues
+}
+
+/** Parses speaker-less transcript text into Cues — one source line per turn, no sentence merging. */
+export function parseTranscript(source: string): Cue[] {
+  resetCueIds()
+
+  const lines = source.replace(/\r\n/g, '\n').split('\n')
+  const cues: Cue[] = []
+
+  for (const raw of lines) {
+    const parsed = parseLine(raw)
+    if (!parsed) continue
+
+    if (parsed.kind === 'blank') continue
+
+    if (parsed.kind === 'marker') {
+      cues.push(createCue(parsed.text, 'marker'))
+      continue
+    }
+
+    if (parsed.kind === 'stage') {
+      cues.push(createCue(parsed.text, 'note'))
+      continue
+    }
+
+    const lineText = parsed.text.trim()
+    if (!lineText) continue
+
+    flushTranscriptLine(lineText, cues)
+  }
+
   return cues
 }
 

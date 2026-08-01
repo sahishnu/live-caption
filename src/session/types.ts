@@ -3,6 +3,8 @@ import type { ExportedSnapshot } from './persist'
 
 export type Mode = 'step' | 'typing'
 
+export type ImportFormat = 'dialogue' | 'transcript'
+
 export type CueKind = 'line' | 'note' | 'marker'
 
 export interface CueSegment {
@@ -100,7 +102,7 @@ export type SessionAction =
   | { type: 'idle/check'; now: number }
   | { type: 'style/updated'; patch: Partial<StyleConfig> }
   | { type: 'style/reset' }
-  | { type: 'import/pasted'; text: string }
+  | { type: 'import/pasted'; text: string; format: ImportFormat }
   | { type: 'import/reclassify'; cueId: string }
   | { type: 'import/confirmed'; name: string }
   | { type: 'import/cancelled' }

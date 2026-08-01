@@ -4,7 +4,7 @@ import { exportState, importState } from './persist'
 import type { SessionState } from './types'
 
 function loadNamedScript(state: SessionState, text: string, name: string) {
-  let next = sessionReducer(state, { type: 'import/pasted', text })
+  let next = sessionReducer(state, { type: 'import/pasted', text, format: 'dialogue' })
   return sessionReducer(next, { type: 'import/confirmed', name })
 }
 

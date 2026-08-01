@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import type { ChromaPreset, SessionAction, StyleConfig } from '../session/types'
 
 interface StylePanelProps {
@@ -109,13 +110,27 @@ const chromaOptions: { value: ChromaPreset; label: string }[] = [
   { value: 'transparent', label: 'Transparent' },
 ]
 
+function StyleGroup({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <div className="flex flex-col gap-3">
+      <h3 className="text-sm font-semibold uppercase tracking-wide text-neutral-500">{title}</h3>
+      <div className="grid grid-cols-2 gap-3">{children}</div>
+    </div>
+  )
+}
+
 export function StylePanel({ style, dispatch }: StylePanelProps) {
   const update = (patch: Partial<StyleConfig>) => dispatch({ type: 'style/updated', patch })
 
   return (
-    <section className="flex flex-col gap-4 rounded border border-neutral-800 p-4">
+    <section className="flex flex-col gap-6 rounded border border-neutral-800 p-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Style</h2>
+        <div>
+          <h2 className="text-lg font-semibold">Style</h2>
+          <p className="mt-1 text-sm text-neutral-400">
+            Typography, layout, and display behaviour for the caption band.
+          </p>
+        </div>
         <button
           type="button"
           className="rounded border border-neutral-600 px-3 py-1 text-sm hover:bg-neutral-800"
@@ -125,7 +140,7 @@ export function StylePanel({ style, dispatch }: StylePanelProps) {
         </button>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <StyleGroup title="Typography">
         <ColorField label="Text colour" value={style.color} onChange={(color) => update({ color })} />
         <NumberField label="Font size (px)" value={style.fontSizePx} min={12} max={200} onChange={(fontSizePx) => update({ fontSizePx })} />
         <SelectField
@@ -156,6 +171,10 @@ export function StylePanel({ style, dispatch }: StylePanelProps) {
           onChange={(lineHeight) => update({ lineHeight })}
         />
         <SelectField label="Text alignment" value={style.align} options={alignOptions} onChange={(align) => update({ align })} />
+        <CheckboxField label="Uppercase" checked={style.uppercase} onChange={(uppercase) => update({ uppercase })} />
+      </StyleGroup>
+
+      <StyleGroup title="Caption band layout">
         <SelectField label="Position" value={style.position} options={alignOptions} onChange={(position) => update({ position })} />
         <NumberField
           label="Max width (%)"
@@ -172,15 +191,9 @@ export function StylePanel({ style, dispatch }: StylePanelProps) {
           onChange={(bottomMarginPct) => update({ bottomMarginPct })}
         />
         <NumberField label="Max lines" value={style.maxLines} min={1} max={5} onChange={(maxLines) => update({ maxLines })} />
-        <CheckboxField label="Uppercase" checked={style.uppercase} onChange={(uppercase) => update({ uppercase })} />
-        <NumberField
-          label="Fade duration (ms, 0 = cut)"
-          value={style.transitionFadeMs}
-          min={0}
-          max={2000}
-          step={50}
-          onChange={(transitionFadeMs) => update({ transitionFadeMs })}
-        />
+      </StyleGroup>
+
+      <StyleGroup title="Text effects">
         <NumberField
           label="Outline width (px)"
           value={style.outlineWidthPx}
@@ -214,12 +227,22 @@ export function StylePanel({ style, dispatch }: StylePanelProps) {
           max={80}
           onChange={(boxPaddingYPx) => update({ boxPaddingYPx })}
         />
-        <SelectField label="Chroma background" value={style.chromaPreset} options={chromaOptions} onChange={(chromaPreset) => update({ chromaPreset })} />
+      </StyleGroup>
+
+      <StyleGroup title="Playback behaviour">
         <CheckboxField label="Captions shown" checked={style.captionsShown} onChange={(captionsShown) => update({ captionsShown })} />
         <CheckboxField
           label="Hybrid live draft"
           checked={style.hybridLiveDraft}
           onChange={(hybridLiveDraft) => update({ hybridLiveDraft })}
+        />
+        <NumberField
+          label="Fade duration (ms, 0 = cut)"
+          value={style.transitionFadeMs}
+          min={0}
+          max={2000}
+          step={50}
+          onChange={(transitionFadeMs) => update({ transitionFadeMs })}
         />
         <NumberField
           label="Idle clear (seconds, 0 = never)"
@@ -228,7 +251,11 @@ export function StylePanel({ style, dispatch }: StylePanelProps) {
           max={120}
           onChange={(idleClearSeconds) => update({ idleClearSeconds })}
         />
-      </div>
+      </StyleGroup>
+
+      <StyleGroup title="Production">
+        <SelectField label="Chroma background" value={style.chromaPreset} options={chromaOptions} onChange={(chromaPreset) => update({ chromaPreset })} />
+      </StyleGroup>
     </section>
   )
 }
