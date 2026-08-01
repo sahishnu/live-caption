@@ -4,7 +4,7 @@
 
 **Blocked by:** None — can start immediately.
 
-**Status:** ready-for-agent
+**Status:** done
 
 ## What to build
 
@@ -44,18 +44,18 @@ the connected badge.
 
 ## Acceptance criteria
 
-- [ ] `npm run dev` serves the Display View at `/` and the Console at `/admin`
-- [ ] Typing text in the Console and clicking Take renders it on the Display View
-- [ ] The Display View renders inside a 1920×1080 Frame scaled uniformly to the window, letterboxing on non-16:9 windows
-- [ ] Resizing the Display View window changes the caption's apparent size but not its proportions or position within the Frame
-- [ ] The caption is bottom-anchored — a two-line caption grows upward and its last line's baseline does not move
-- [ ] Refreshing the Display View restores the caption that was On Air
-- [ ] Refreshing the Console restores its state
-- [ ] Closing the Display View flips the Console's badge to not-connected; reopening it flips it back
-- [ ] All live state changes flow through the session reducer; no component holds live state
-- [ ] The Measurer is injected, and reducer tests pass a deterministic fake
-- [ ] Reducer tests cover the actions introduced in this ticket
-- [ ] One integration smoke test mounts Console and Display View over an in-memory Transport, takes a line, and asserts it appears on the Display View
-- [ ] One integration smoke test asserts On Air content is restored after remounting the Display View
-- [ ] The app makes no network requests at runtime — verifiable with the network offline
-- [ ] The Display View renders no operator affordances of any kind
+- [x] `npm run dev` serves the Display View at `/` and the Console at `/admin`
+- [x] Typing text in the Console and clicking Take renders it on the Display View
+- [x] The Display View renders inside a 1920×1080 Frame scaled uniformly to the window, letterboxing on non-16:9 windows
+- [x] Resizing the Display View window changes the caption's apparent size but not its proportions or position within the Frame
+- [x] The caption is bottom-anchored — a two-line caption grows upward and its last line's baseline does not move
+- [x] Refreshing the Display View restores the caption that was On Air
+- [x] Refreshing the Console restores its state
+- [x] Closing the Display View flips the Console's badge to not-connected; reopening it flips it back
+- [x] All live state changes flow through the session reducer; no component holds live state
+- [x] The Measurer is injected, and reducer tests pass a deterministic fake
+- [x] Reducer tests cover the actions introduced in this ticket
+- [x] One integration smoke test mounts Console and Display View over an in-memory Transport, takes a line, and asserts it appears on the Display View
+- [x] One integration smoke test asserts On Air content is restored after remounting the Display View
+- [x] The app makes no network requests at runtime — verifiable with the network offline
+- [x] The Display View renders no operator affordances of any kind
