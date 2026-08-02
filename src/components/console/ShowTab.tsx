@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { Measurer } from '../../session/measurer'
 import { selectActiveCues, selectDraft } from '../../session/selectors'
 import type { Mode, SessionAction, SessionState } from '../../session/types'
 import { PreviewFrame } from '../PreviewFrame'
+import { ScriptSwitcher } from './ScriptSwitcher'
 import { StepModeCueList } from '../StepModeCueList'
 import { StepModeTransport } from '../StepModeTransport'
 
@@ -27,6 +28,11 @@ export function ShowTab({ state, dispatch, measurer, keysInactive, onGoToPrep, n
   const [search, setSearch] = useState('')
   const [overflowOnly, setOverflowOnly] = useState(false)
 
+  useEffect(() => {
+    setSearch('')
+    setOverflowOnly(false)
+  }, [state.activeScriptId])
+
   return (
     <div
       role="tabpanel"
@@ -41,6 +47,8 @@ export function ShowTab({ state, dispatch, measurer, keysInactive, onGoToPrep, n
         />
 
         <div className="flex flex-col gap-4">
+          <ScriptSwitcher state={state} dispatch={dispatch} onGoToPrep={onGoToPrep} />
+
           <label className="flex flex-col gap-1 text-sm">
             <span className="text-neutral-400">Mode</span>
             <select
@@ -107,16 +115,6 @@ export function ShowTab({ state, dispatch, measurer, keysInactive, onGoToPrep, n
               overflowOnly={overflowOnly}
               onOverflowOnlyChange={setOverflowOnly}
             />
-          )}
-
-          {state.mode === 'typing' && activeCues.length > 0 && (
-            <p className="text-sm text-neutral-400">
-              Script loaded ({activeCues.length} cues) — switch to Step Mode to advance through it, or{' '}
-              <button type="button" className="text-blue-400 hover:underline" onClick={onGoToPrep}>
-                edit in Prep
-              </button>
-              .
-            </p>
           )}
         </div>
       </div>

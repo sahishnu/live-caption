@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Transport } from '../transport/types'
-import { createInitialState, mergeStyleConfig, sessionReducer } from './reducer'
+import { createInitialState, mergeStyleConfig, normalizeSessionState, sessionReducer } from './reducer'
 import type { SessionAction, SessionState } from './types'
 
 const CHANNEL = 'session'
 
 function rehydrateState(persisted: SessionState | null): SessionState {
   if (!persisted) return createInitialState()
-  return {
+  return normalizeSessionState({
     ...createInitialState(),
     ...persisted,
     style: mergeStyleConfig(persisted.style),
@@ -17,8 +17,12 @@ function rehydrateState(persisted: SessionState | null): SessionState {
     scoutIndex: persisted.scoutIndex ?? createInitialState().scoutIndex,
     onAirCueIndex: persisted.onAirCueIndex ?? null,
     preClearOnAir: persisted.preClearOnAir ?? null,
-    calibrationMode: false,
-  }
+    calibrationMode: persisted.calibrationMode ?? false,
+  })
+}
+
+function readTransportState(transport: Transport): SessionState {
+  return rehydrateState(transport.read(CHANNEL) as SessionState | null)
 }
 
 /**
@@ -27,25 +31,33 @@ function rehydrateState(persisted: SessionState | null): SessionState {
  * result so the other route picks it up.
  */
 export function useSession(transport: Transport): [SessionState, (action: SessionAction) => void] {
-  const [state, setState] = useState<SessionState>(() => {
-    const persisted = transport.read(CHANNEL) as SessionState | null
-    return rehydrateState(persisted)
-  })
+  const [state, setState] = useState<SessionState>(() => readTransportState(transport))
 
   const stateRef = useRef(state)
   stateRef.current = state
 
   useEffect(() => {
-    return transport.subscribe(CHANNEL, (value) => {
-      const next = rehydrateState(value as SessionState)
+    const applyIncoming = (value: SessionState) => {
+      const next = rehydrateState(value)
       stateRef.current = next
       setState(next)
+    }
+
+    // Subscribe does not replay the last value — catch up from localStorage.
+    const stored = transport.read(CHANNEL) as SessionState | null
+    if (stored) applyIncoming(stored)
+
+    return transport.subscribe(CHANNEL, (value) => {
+      applyIncoming(value as SessionState)
     })
   }, [transport])
 
   const dispatch = useCallback(
     (action: SessionAction) => {
-      const next = sessionReducer(stateRef.current, action)
+      // Merge the latest Transport snapshot before reducing so a Display window
+      // never republishes stale operator state (e.g. calibrationMode) from its ref.
+      const current = readTransportState(transport)
+      const next = sessionReducer(current, action)
       stateRef.current = next
       setState(next)
       transport.publish(CHANNEL, next)

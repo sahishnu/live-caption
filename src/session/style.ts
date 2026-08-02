@@ -1,7 +1,7 @@
 import type { ChromaPreset, StyleConfig } from './types'
 
 export const CHROMA_PRESET_COLORS: Record<ChromaPreset, string> = {
-  green: '#00ff00',
+  green: '#03B140',
   magenta: '#ff00ff',
   black: '#000000',
   transparent: 'transparent',

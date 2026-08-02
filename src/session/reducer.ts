@@ -46,6 +46,27 @@ export function createInitialState(): SessionState {
   }
 }
 
+/** Ensure a non-empty library always has a valid active script selected. */
+export function normalizeSessionState(state: SessionState): SessionState {
+  if (state.scriptLibrary.length === 0) {
+    if (state.activeScriptId === null) return state
+    return { ...state, activeScriptId: null, armedIndex: -1, scoutIndex: -1 }
+  }
+
+  const activeExists =
+    state.activeScriptId !== null &&
+    state.scriptLibrary.some((script) => script.id === state.activeScriptId)
+
+  if (activeExists) return state
+
+  return {
+    ...state,
+    activeScriptId: state.scriptLibrary[0]!.id,
+    armedIndex: 0,
+    scoutIndex: 0,
+  }
+}
+
 function takeTyping(
   state: SessionState,
   text: string,
@@ -236,7 +257,7 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
         onAirText: null,
         cleared: true,
         lastTakeAt: null,
-        typingBuffer: { draft: '', lines: [] },
+        typingBuffer: { ...state.typingBuffer, lines: [] },
       }
 
     case 'step/arm': {
@@ -378,12 +399,15 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
       const script = state.scriptLibrary.find((entry) => entry.id === action.scriptId)
       if (!script || script.id === state.activeScriptId) return state
 
-      return {
+      return normalizeSessionState({
         ...state,
         activeScriptId: script.id,
         armedIndex: 0,
         scoutIndex: 0,
-      }
+        // Keep on-air display text, but detach cue-list highlighting from the previous script.
+        onAirCueIndex: null,
+        mode: script.cues.length > 0 ? 'step' : state.mode,
+      })
     }
 
     case 'script/rename': {
@@ -416,14 +440,14 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
     }
 
     case 'state/imported':
-      return {
+      return normalizeSessionState({
         ...state,
         scriptLibrary: action.snapshot.scriptLibrary,
         activeScriptId: action.snapshot.activeScriptId,
         style: action.snapshot.style,
         armedIndex: action.snapshot.activeScriptId ? 0 : -1,
         scoutIndex: action.snapshot.activeScriptId ? 0 : -1,
-      }
+      })
 
     case 'calibration/toggled':
       return {

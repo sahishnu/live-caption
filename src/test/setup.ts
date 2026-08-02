@@ -2,7 +2,13 @@ import { cleanup } from '@testing-library/react'
 import { afterEach } from 'vitest'
 import '@testing-library/jest-dom/vitest'
 
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  localStorage.removeItem('live-caption.consoleTab')
+  localStorage.removeItem('live-caption:session')
+  localStorage.removeItem('live-caption:heartbeat')
+  localStorage.removeItem('live-caption:display-meta')
+})
 
 // jsdom has no layout engine and no ResizeObserver. The Frame component only
 // needs it to react to window resizes, which integration smoke tests don't

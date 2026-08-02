@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createFakeMeasurer } from '../test/fakeMeasurer'
-import { createInitialState, defaultStyleConfig, sessionReducer } from './reducer'
+import { createInitialState, defaultStyleConfig, normalizeSessionState, sessionReducer } from './reducer'
 import {
   selectActiveCues,
   selectCommittedLines,
@@ -191,6 +191,16 @@ describe('sessionReducer', () => {
     expect(selectCommittedLines(state)).toEqual([])
   })
 
+  it('clear preserves the in-progress draft in typing mode', () => {
+    let state = take(createInitialState(), 'On air now')
+    state = sessionReducer(state, { type: 'draft/changed', text: 'Next line in progress' })
+    state = sessionReducer(state, { type: 'clear' })
+
+    expect(selectHasOnAir(state)).toBe(false)
+    expect(selectCommittedLines(state)).toEqual([])
+    expect(selectDraft(state)).toBe('Next line in progress')
+  })
+
   it('mode/changed switches between typing and step without clearing state', () => {
     let state = take(createInitialState(), 'Still visible')
     state = sessionReducer(state, { type: 'mode/changed', mode: 'step', measurer })
@@ -259,6 +269,18 @@ describe('sessionReducer', () => {
 
     expect(selectHasOnAir(state)).toBe(false)
     expect(state.cleared).toBe(true)
+  })
+
+  it('idle auto-clear preserves the in-progress draft', () => {
+    let state = take(createInitialState(), 'On air now')
+    state = sessionReducer(state, { type: 'draft/changed', text: 'Still typing this' })
+    const takenAt = state.lastTakeAt!
+    state = sessionReducer(state, { type: 'idle/check', now: takenAt + 8_000 })
+
+    expect(selectHasOnAir(state)).toBe(false)
+    expect(state.cleared).toBe(true)
+    expect(selectCommittedLines(state)).toEqual([])
+    expect(selectDraft(state)).toBe('Still typing this')
   })
 
   it('idle auto-clear does not fire before the configured interval', () => {
@@ -775,6 +797,20 @@ describe('script library', () => {
     expect(state.activeScriptId).toBe(state.scriptLibrary[1]?.id)
   })
 
+  it('defaults to the first script when the library is loaded without an active script', () => {
+    let state = loadNamedScript('ANN: First.', 'First')
+    state = loadNamedScript('BOB: Second.', 'Second', state)
+    const secondId = state.activeScriptId!
+
+    state = normalizeSessionState({
+      ...state,
+      activeScriptId: null,
+    })
+
+    expect(state.activeScriptId).toBe(state.scriptLibrary[0]?.id)
+    expect(state.activeScriptId).not.toBe(secondId)
+  })
+
   it('switching the active script carries that script cues and edits', () => {
     let state = loadNamedScript('ANN: First drama.\n\nANN: Second drama.', 'Drama')
     const dramaId = state.activeScriptId!
@@ -825,7 +861,7 @@ describe('script library', () => {
     state = sessionReducer(state, { type: 'script/switch', scriptId: addressId })
 
     expect(selectOnAir(state)).toBe(onAirBefore)
-    expect(state.onAirCueIndex).toBe(0)
+    expect(state.onAirCueIndex).toBeNull()
   })
 
   it('renames a script', () => {

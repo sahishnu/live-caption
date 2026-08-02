@@ -1,6 +1,7 @@
 import type { Measurer } from '../session/measurer'
 import {
   selectActiveCues,
+  selectActiveScript,
   selectCueDisplayText,
   selectHasOnAir,
   selectNextCue,
@@ -34,10 +35,12 @@ export function StepModeTransport({
   onOverflowOnlyChange,
 }: StepModeTransportProps) {
   const cues = selectActiveCues(state)
+  const activeScript = selectActiveScript(state)
   const onAirCue = selectOnAirCue(state)
   const nextCue = selectNextCue(state)
   const hasOnAir = selectHasOnAir(state)
   const overflowCount = selectOverflowCues(state, measurer).length
+  const onAirDetached = hasOnAir && state.mode === 'step' && state.onAirCueIndex === null
 
   if (cues.length === 0) return null
 
@@ -58,6 +61,13 @@ export function StepModeTransport({
           </span>
         )}
       </div>
+
+      {onAirDetached && (
+        <p className="rounded border border-amber-700 bg-amber-950/40 px-3 py-2 text-sm text-amber-100">
+          On-air caption is unchanged. Take from <strong>{activeScript?.name ?? 'this script'}</strong> to
+          update the feed.
+        </p>
+      )}
 
       <div
         className={`grid gap-3 rounded border p-3 ${hasOnAir ? 'border-green-600 bg-green-950/40' : 'border-neutral-700 bg-neutral-950'}`}

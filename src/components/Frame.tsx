@@ -34,7 +34,12 @@ export function Frame({ background, children, className = 'h-screen w-screen', '
   }, [])
 
   return (
-    <div ref={containerRef} className={`relative overflow-hidden bg-black ${className}`} aria-label={ariaLabel}>
+    <div
+      ref={containerRef}
+      className={`relative overflow-hidden ${className}`}
+      style={{ background }}
+      aria-label={ariaLabel}
+    >
       <div
         className="absolute left-1/2 top-1/2"
         style={{
